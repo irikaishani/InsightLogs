@@ -1,6 +1,6 @@
 // src/pages/uploads.jsx
 import React, { useRef, useState } from "react";
-import Card from "../shared/Card";
+import Card from "../shared/card";
 import { API_BASE } from "../firebasework/firebaseconfig";
 import { useNavigate } from "react-router-dom";
 
