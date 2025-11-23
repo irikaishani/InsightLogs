@@ -1,0 +1,94 @@
+##############################
+# Global OS / Editor Ignores #
+##############################
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+##################
+# Backend Ignores #
+##################
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# SQLite local DB
+*.db
+
+# Env files (important: never commit secrets)
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+*.log
+logs/
+
+# Python packaging
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+###################
+# Frontend Ignores
+###################
+
+# Node dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Cache
+.pnp/
+.pnp.js
+.cache/
+temp/
+.tmp/
+.eslintcache
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local env files
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# Misc front-end
+*.local
+
+##########################
+# Additional Custom Paths
+##########################
+
+# Firebase config backups
+firebase-debug.log
+
+# Temporary uploads folder (if created during dev)
+uploads/
