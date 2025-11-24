@@ -94,12 +94,7 @@ def root():
 def health():
     return {"status": "ok"}
 
-# -------------------------
-# Legacy compatibility aliases
-# -------------------------
-# These wrappers call the functions defined in auth.py so frontend can keep calling the
-# original endpoints (/signup, /token, /profile, /verify-token, /api/auth/google-login, etc.)
-# without edits.
+
 
 # 1) /signup  -> calls auth.signup_user
 @app.post("/signup", tags=["compat"])
@@ -141,8 +136,6 @@ def google_login_compat(request: Request, db: Session = Depends(get_db)):
     """
     Compatibility endpoint: calls auth.google_login
     """
-    # auth.google_login expects (request, db)
+    
     return google_login(request=request, db=db)
 
-# 6) Optional: map /auth/* still exists via auth_router, so both /auth/token and /token work.
-# Add any additional legacy endpoints here as needed, following the same pattern.
