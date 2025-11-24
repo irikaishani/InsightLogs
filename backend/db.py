@@ -45,6 +45,11 @@ DEFAULT_SQLITE_URL = f"sqlite:///{os.path.abspath(_default_sqlite_path)}"
 
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("DB_URL") or DEFAULT_SQLITE_URL
 
+# Normalize old-style postgres scheme to SQLAlchemy-friendly form
+# (Render may provide `postgres://...` which SQLAlchemy prefers `postgresql://...`)
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # If using Postgres on Render, ensure SSL is required
 DATABASE_URL = _ensure_postgres_ssl(DATABASE_URL)
 
