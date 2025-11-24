@@ -695,27 +695,55 @@ def delete_upload(
     db: Session = Depends(get_db),
 ):
     """
-    Robust delete handler for Upload:
-      - deletes LogEntry rows referencing the upload
-      - deletes AnalysisJob rows referencing the upload (queued/running jobs)
-      - attempts to remove the file from disk (best-effort)
-      - deletes the Upload row
-    Returns JSONResponse with a helpful error on failure (so CORS middleware still attaches headers).
+    Robust delete handler:
+      - deletes Report rows that reference AnalysisJob(s) for this upload
+      - deletes AnalysisJob rows for this upload
+      - deletes LogEntry rows for this upload
+      - removes file from disk (best-effort)
+      - deletes Upload row
+    Returns JSONResponse with helpful error messages.
     """
     logger = logging.getLogger(__name__)
 
-    # find upload
+    # 1) find the upload, ensure ownership
     upload = db.query(Upload).filter(
         Upload.id == upload_id,
         Upload.user_email == current_user.email
     ).first()
-
     if not upload:
         return JSONResponse(status_code=404, content={"detail": "Upload not found"})
 
-    # perform deletes in a safe order under explicit try/except
     try:
-        # 1) delete LogEntry rows (bulk)
+        # 2) Find analysis job ids associated with this upload (if any)
+        job_rows = db.query(AnalysisJob.id).filter(
+            AnalysisJob.upload_id == upload_id,
+            AnalysisJob.user_email == current_user.email
+        ).all()
+        job_ids = [r[0] for r in job_rows] if job_rows else []
+
+        # 3) Delete Reports that reference those jobs (must happen before deleting jobs)
+        if job_ids:
+            try:
+                db.query(Report).filter(Report.job_id.in_(job_ids)).delete(synchronize_session=False)
+                db.commit()
+            except SQLAlchemyError:
+                db.rollback()
+                logger.exception("Failed to delete Reports referencing jobs %s for upload %s", job_ids, upload_id)
+                # continue - we will attempt to delete jobs/logs/upload but inform user below if needed
+
+        # 4) Delete AnalysisJob rows for this upload
+        try:
+            db.query(AnalysisJob).filter(
+                AnalysisJob.upload_id == upload_id,
+                AnalysisJob.user_email == current_user.email
+            ).delete(synchronize_session=False)
+            db.commit()
+        except SQLAlchemyError as se:
+            db.rollback()
+            logger.exception("Failed to delete AnalysisJob rows for upload %s: %s", upload_id, se)
+            return JSONResponse(status_code=500, content={"detail": "Failed to delete analysis jobs", "error": str(se)})
+
+        # 5) Delete LogEntry rows associated with the upload
         try:
             db.query(LogEntry).filter(
                 LogEntry.upload_id == upload_id,
@@ -724,23 +752,10 @@ def delete_upload(
             db.commit()
         except SQLAlchemyError:
             db.rollback()
-            logger.exception("Failed to bulk-delete LogEntry rows for upload %s", upload_id)
-            # Continue — we still try to remove jobs and upload row
+            logger.exception("Failed to delete LogEntry rows for upload %s", upload_id)
+            # continue - we still attempt to remove upload record & file
 
-        # 2) delete AnalysisJob rows that reference this upload (if any)
-        #    (some schemas might keep jobs even after upload deletion; remove to avoid FK issues)
-        try:
-            db.query(AnalysisJob).filter(
-                AnalysisJob.upload_id == upload_id,
-                AnalysisJob.user_email == current_user.email
-            ).delete(synchronize_session=False)
-            db.commit()
-        except SQLAlchemyError:
-            db.rollback()
-            logger.exception("Failed to bulk-delete AnalysisJob rows for upload %s", upload_id)
-            # Continue — attempt final delete
-
-        # 3) attempt to remove file from disk (best-effort)
+        # 6) Attempt to remove the file from disk (best-effort)
         try:
             fp = getattr(upload, "storage_path", None)
             if fp and os.path.exists(fp):
@@ -749,7 +764,7 @@ def delete_upload(
         except Exception:
             logger.exception("Failed to remove upload file from disk for upload %s", upload_id)
 
-        # 4) delete the Upload row itself
+        # 7) Delete the Upload row itself
         try:
             db.delete(upload)
             db.commit()
@@ -762,11 +777,11 @@ def delete_upload(
             logger.exception("SQLAlchemyError when deleting Upload %s: %s", upload_id, se)
             return JSONResponse(status_code=500, content={"detail": "Database error when deleting upload", "error": str(se)})
 
-        # success
+        # Success
         return JSONResponse(status_code=200, content={"success": True, "deleted_upload": upload_id})
 
     except Exception as e:
-        # unexpected
+        # unexpected error - ensure rollback and return safe JSON
         logger.exception("Unexpected error deleting upload %s: %s", upload_id, e)
         try:
             db.rollback()
