@@ -211,31 +211,93 @@ export default function Logs() {
     // the effect will re-run and fetch without server filtering.
   }, [limit, selectedUploadId, q, serverFilteringSupported]);
 
-  /* Delete upload */
+  /* Delete upload — improved version */
   const handleDeleteUpload = async (uploadId) => {
     if (!window.confirm("Delete this upload and all its logs?")) return;
 
     const token = getAuthToken();
+    const headers = token
+      ? { Authorization: `Bearer ${token}`, Accept: "application/json" }
+      : { Accept: "application/json" };
+
     try {
-      const resp = await fetch(`${API_BASE}/uploads/${uploadId}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-
-      if (!resp.ok) throw new Error();
-
+      // optimistic UI update for snappy UX
       setUploads((u) => u.filter((x) => x.id !== uploadId));
       setLogs((l) => l.filter((x) => String(x.upload_id) !== String(uploadId)));
+      if (selectedUploadId === String(uploadId)) setSelectedUploadId("");
 
-      if (selectedUploadId === String(uploadId)) {
-        setSelectedUploadId("");
+      console.info("Deleting upload:", uploadId, "URL:", `${API_BASE}/uploads/${uploadId}`);
+
+      const resp = await fetch(`${API_BASE}/uploads/${uploadId}`, {
+        method: "DELETE",
+        headers,
+        mode: "cors",
+        // credentials: "include", // uncomment if you use cookie-based auth
+      });
+
+      // If not OK, read body for a useful error message
+      if (!resp.ok) {
+        let bodyText = `${resp.status} ${resp.statusText}`;
+        try {
+          const txt = await resp.text();
+          if (txt) {
+            try {
+              const parsed = JSON.parse(txt);
+              bodyText = parsed?.detail || JSON.stringify(parsed) || txt;
+            } catch {
+              bodyText = txt;
+            }
+          }
+        } catch (e) {
+          /* ignore */
+        }
+        console.error("Delete failed", resp.status, bodyText);
+        // Revert optimistic UI changes by re-fetching uploads/logs
+        await refreshUploadsAndLogs();
+        throw new Error(bodyText);
       }
 
+      // Successful deletion — re-sync with server to ensure counts are correct
+      await refreshUploadsAndLogs();
+
       alert("Upload deleted.");
-    } catch {
-      alert("Failed to delete upload.");
+    } catch (err) {
+      console.error("handleDeleteUpload error:", err);
+      alert(`Failed to delete upload. ${err?.message ? err.message : ""}`);
     }
   };
+
+  /* helper: refresh uploads and logs to keep UI consistent after changes */
+  async function refreshUploadsAndLogs() {
+    try {
+      const token = getAuthToken();
+      const hdrs = token ? { Authorization: `Bearer ${token}`, Accept: "application/json" } : { Accept: "application/json" };
+
+      // refresh uploads
+      try {
+        const upResp = await fetch(`${API_BASE}/uploads`, { headers: hdrs });
+        if (upResp.ok) {
+          const ups = await upResp.json().catch(() => []);
+          setUploads(Array.isArray(ups) ? ups : []);
+        } else {
+          console.warn("refreshUploadsAndLogs: failed to fetch uploads", upResp.status);
+        }
+      } catch (e) {
+        console.warn("refreshUploadsAndLogs: uploads fetch error", e);
+      }
+
+      // refresh logs (use existing fetch function in component)
+      try {
+        const params = { limit };
+        if (selectedUploadId) params.upload_id = selectedUploadId;
+        await fetchLogsFromServer({ useServerFiltering: serverFilteringSupported, params });
+      } catch (e) {
+        console.warn("refreshUploadsAndLogs: failed to re-fetch logs", e);
+      }
+    } catch (e) {
+      console.error("refreshUploadsAndLogs error:", e);
+    }
+  }
 
   /* Client filtering */
   const filtered = useMemo(() => {
@@ -451,7 +513,7 @@ export default function Logs() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ))} 
                 </div>
               )}
             </Card>
