@@ -688,33 +688,91 @@ def update_profile(payload: dict, current_user: User = Depends(get_current_activ
         out[col] = getattr(u, col)
     return out
 
-
 @router.delete("/uploads/{upload_id}")
 def delete_upload(
     upload_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    # 1. Verify upload exists + belongs to user
+    """
+    Robust delete handler for Upload:
+      - deletes LogEntry rows referencing the upload
+      - deletes AnalysisJob rows referencing the upload (queued/running jobs)
+      - attempts to remove the file from disk (best-effort)
+      - deletes the Upload row
+    Returns JSONResponse with a helpful error on failure (so CORS middleware still attaches headers).
+    """
+    logger = logging.getLogger(__name__)
+
+    # find upload
     upload = db.query(Upload).filter(
         Upload.id == upload_id,
         Upload.user_email == current_user.email
     ).first()
 
     if not upload:
-        raise HTTPException(status_code=404, detail="Upload not found")
+        return JSONResponse(status_code=404, content={"detail": "Upload not found"})
 
-    # 2. Delete all logs linked to this upload
-    db.query(LogEntry).filter(
-        LogEntry.upload_id == upload_id,
-        LogEntry.user_email == current_user.email
-    ).delete()
+    # perform deletes in a safe order under explicit try/except
+    try:
+        # 1) delete LogEntry rows (bulk)
+        try:
+            db.query(LogEntry).filter(
+                LogEntry.upload_id == upload_id,
+                LogEntry.user_email == current_user.email
+            ).delete(synchronize_session=False)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            logger.exception("Failed to bulk-delete LogEntry rows for upload %s", upload_id)
+            # Continue — we still try to remove jobs and upload row
 
-    # 3. Delete the upload row
-    db.delete(upload)
-    db.commit()
+        # 2) delete AnalysisJob rows that reference this upload (if any)
+        #    (some schemas might keep jobs even after upload deletion; remove to avoid FK issues)
+        try:
+            db.query(AnalysisJob).filter(
+                AnalysisJob.upload_id == upload_id,
+                AnalysisJob.user_email == current_user.email
+            ).delete(synchronize_session=False)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            logger.exception("Failed to bulk-delete AnalysisJob rows for upload %s", upload_id)
+            # Continue — attempt final delete
 
-    return {"success": True, "deleted_upload": upload_id}
+        # 3) attempt to remove file from disk (best-effort)
+        try:
+            fp = getattr(upload, "storage_path", None)
+            if fp and os.path.exists(fp):
+                os.remove(fp)
+                logger.info("Removed upload file from disk: %s", fp)
+        except Exception:
+            logger.exception("Failed to remove upload file from disk for upload %s", upload_id)
+
+        # 4) delete the Upload row itself
+        try:
+            db.delete(upload)
+            db.commit()
+        except IntegrityError as ie:
+            db.rollback()
+            logger.exception("IntegrityError when deleting Upload %s: %s", upload_id, ie)
+            return JSONResponse(status_code=500, content={"detail": "Database integrity error when deleting upload", "error": str(ie)})
+        except SQLAlchemyError as se:
+            db.rollback()
+            logger.exception("SQLAlchemyError when deleting Upload %s: %s", upload_id, se)
+            return JSONResponse(status_code=500, content={"detail": "Database error when deleting upload", "error": str(se)})
+
+        # success
+        return JSONResponse(status_code=200, content={"success": True, "deleted_upload": upload_id})
+
+    except Exception as e:
+        # unexpected
+        logger.exception("Unexpected error deleting upload %s: %s", upload_id, e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return JSONResponse(status_code=500, content={"detail": "Unexpected server error", "error": str(e)})
 
 
 @router.post("/ai/analyze")
