@@ -38,10 +38,8 @@ logger.addHandler(logging.StreamHandler())
 app = FastAPI(title="InsightLogs Backend (compat mode)")
 
 # --- CORS setup (robust and safe defaults) -----------------
-# FRONTEND_ORIGIN env var may contain a comma-separated list of allowed origins,
-# or a single value of '*' to allow all origins (note: allow_credentials will
-# be disabled in that case because browsers disallow credentials with '*').
-FRONTEND_ORIGIN_ENV = os.environ.get("FRONTEND_ORIGIN", "").strip()
+# Accept either FRONTEND_ORIGIN or CORS_ALLOWED_ORIGINS environment variable (backwards compatible).
+FRONTEND_ORIGIN_ENV = os.environ.get("FRONTEND_ORIGIN", "").strip() or os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
 
 def _parse_origins(env_value: str) -> List[str]:
     if not env_value:
@@ -90,6 +88,11 @@ def on_startup():
 @app.get("/")
 def root():
     return {"ok": True, "message": "InsightLogs backend running"}
+
+# Health endpoint (useful for Render and load balancers)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 # -------------------------
 # Legacy compatibility aliases
