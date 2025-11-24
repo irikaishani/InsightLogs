@@ -9,14 +9,16 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from db import get_db
 from models import Upload, AnalysisJob, Report, LogEntry, User
 from pydantic import BaseModel
 import traceback
 import concurrent.futures
 
+
 AI_ANALYSIS_TIMEOUT_SECS = 80
+
 
 # Attempt to import ai_integration if available (module local)
 analyze_log_text = None
@@ -40,15 +42,6 @@ except Exception as e:
 
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "data/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# Read allowed front-end origin from env (supports FRONTEND_ORIGIN or CORS_ALLOWED_ORIGINS)
-_ALLOWED_ORIGIN_ENV = os.environ.get("FRONTEND_ORIGIN", "").strip() or os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
-if not _ALLOWED_ORIGIN_ENV:
-    # sensible default for your deployed frontend
-    ALLOWED_CORS_ORIGIN = "https://insightlogs.onrender.com"
-else:
-    # if allowed list provided, pick the first origin (keep simple)
-    ALLOWED_CORS_ORIGIN = [p.strip().rstrip("/") for p in _ALLOWED_ORIGIN_ENV.split(",") if p.strip()][0]
 
 router = APIRouter(tags=["resources"])
 
@@ -557,35 +550,6 @@ def list_uploads(current_user: User = Depends(get_current_active_user), db: Sess
         out.append({"id": u.id, "name": u.filename, "created_at": u.created_at.isoformat() if u.created_at else None, "size": u.size, "parsed_count": u.parsed_count})
     return out
 
-# -------------------------
-# NEW: Serve uploaded file with explicit CORS headers
-# -------------------------
-@router.get("/uploads/{upload_id}")
-def serve_upload_file(upload_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    """
-    Serve the actual uploaded file (FileResponse) and ensure CORS headers are present
-    so browser clients from the frontend origin can fetch the file.
-    """
-    upload = db.query(Upload).filter(Upload.id == upload_id, Upload.user_email == current_user.email).first()
-    if not upload:
-        raise HTTPException(status_code=404, detail="Upload not found")
-
-    file_path = getattr(upload, "storage_path", None)
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Stored file not found")
-
-    try:
-        response = FileResponse(file_path, media_type="application/octet-stream", filename=upload.filename)
-        # Add CORS headers explicitly (FileResponse bypasses some middleware)
-        response.headers["Access-Control-Allow-Origin"] = ALLOWED_CORS_ORIGIN
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        # you can add more headers if needed
-        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition,Content-Length"
-        return response
-    except Exception as e:
-        logging.getLogger(__name__).exception("serve_upload_file: failed to serve file %s: %s", file_path, e)
-        raise HTTPException(status_code=500, detail="Failed to serve file")
-
 @router.get("/files/last")
 def get_last_file(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     logging.getLogger(__name__).info("GET /files/last requested by user=%s", getattr(current_user, "email", None))
@@ -850,3 +814,4 @@ def ai_analyze_result(job_id: int, current_user: User = Depends(get_current_acti
 
     # if result not ready yet
     raise HTTPException(status_code=404, detail="Result not ready")
+
