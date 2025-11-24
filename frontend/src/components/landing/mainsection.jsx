@@ -4,7 +4,7 @@ import Spline from '@splinetool/react-spline';
 const Mainsection = () => {
   return (
     <main className="relative flex flex-col-reverse lg:flex-row items-center justify-between min-h-[calc(100vh-6rem)] overflow-hidden px-6 sm:px-10 lg:px-20 py-10 lg:py-16 mt-34 ">
-      
+
       {/* Background Gradient Image */}
       <img
         className="absolute top-0 right-0 opacity-100 -z-20"
@@ -17,7 +17,7 @@ const Mainsection = () => {
 
       {/* -------- Left Text Section -------- */}
       <div className="relative z-10 flex flex-col items-start text-center lg:text-left max-w-2xl w-full mt-10 lg:mt-0">
-        
+
         {/* Tag bubble */}
         <div className="relative w-full sm:w-48 h-10 mx-auto lg:mx-0 rounded-full bg-gradient-to-r from-[#3b82f6] via-[#7da7fc] to-[#c4b5fd] shadow-[0_0_18px_rgba(150,130,255,0.5)] flex items-center justify-center">
           <div className="absolute inset-[2px] bg-black rounded-full flex items-center justify-center gap-2 px-4 transition-transform duration-300 ease-out hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.5)]">
@@ -47,10 +47,13 @@ const Mainsection = () => {
         <div className="py-6">
           <a
             className="border text-gray-300 border-[#2a2a2a] py-2 sm:py-2.5 px-5 sm:px-6 rounded-full sm:text-lg text-sm font-semibold tracking-wider transition-all duration-300 hover:bg-[#1a1a1a] hover:text-white"
-            href="#"
+            href="https://github.com/irikaishani/InsightLogs"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Documentation <i className="bx bx-link-external align-middle"></i>
           </a>
+
         </div>
       </div>
 
