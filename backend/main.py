@@ -1,9 +1,9 @@
-# backend/main.py
 import os
 import logging
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from typing import List
 
 # load env if using dotenv
 from dotenv import load_dotenv
@@ -37,16 +37,35 @@ logger.addHandler(logging.StreamHandler())
 # Create FastAPI app
 app = FastAPI(title="InsightLogs Backend (compat mode)")
 
-# CORS
-FRONTEND_ORIGIN_ENV = os.environ.get("FRONTEND_ORIGIN", "")
-origins = [o.strip() for o in FRONTEND_ORIGIN_ENV.split(",") if o.strip()]
+# --- CORS setup (robust and safe defaults) -----------------
+# FRONTEND_ORIGIN env var may contain a comma-separated list of allowed origins,
+# or a single value of '*' to allow all origins (note: allow_credentials will
+# be disabled in that case because browsers disallow credentials with '*').
+FRONTEND_ORIGIN_ENV = os.environ.get("FRONTEND_ORIGIN", "").strip()
+
+def _parse_origins(env_value: str) -> List[str]:
+    if not env_value:
+        return []
+    # special-case single '*' to mean allow all (no credentials)
+    if env_value == "*":
+        return ["*"]
+    parts = [p.strip().rstrip("/") for p in env_value.split(",") if p.strip()]
+    return parts
+
+origins = _parse_origins(FRONTEND_ORIGIN_ENV)
+# sensible fallback for local development if nothing provided
 if not origins:
     origins = ["http://localhost:5173"]
+
+# If the user explicitly set '*' we must not set allow_credentials=True
+allow_credentials = False if origins == ["*"] else True
+
+logger.info("CORS origins: %s (allow_credentials=%s)", origins, allow_credentials)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,8 +76,16 @@ app.include_router(auth_router, prefix="/auth")
 # - resources router mounted at root (keeps existing resource paths unchanged)
 app.include_router(resources_router, prefix="")
 
-# Create tables at startup (dev convenience)
-Base.metadata.create_all(bind=engine)
+# Create tables at startup (dev convenience). Running create_all at import-time may
+# be surprising on some deployments, so we perform it on the startup event instead.
+@app.on_event("startup")
+def on_startup():
+    try:
+        logger.info("Running Base.metadata.create_all(bind=engine)")
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.exception("Failed to create DB tables on startup: %s", e)
+
 
 @app.get("/")
 def root():
