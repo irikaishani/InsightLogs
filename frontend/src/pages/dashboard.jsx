@@ -324,7 +324,7 @@ export default function Dashboard() {
 
   /* ----------------- Render ----------------- */
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen bg-gradient-to-b from-slate-850 to-slate-900 text-slate-100">
       <header className="flex items-center justify-between p-6 border-b border-white/6">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-indigo-400">Dashboard</h1>
