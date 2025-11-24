@@ -1,4 +1,3 @@
-# backend/app_resources.py  (or whatever path your router file is)
 import os
 import uuid
 import json
@@ -88,7 +87,7 @@ class LogEntryResponse(BaseModel):
     level: Optional[str]
     service: Optional[str]
     message: Optional[str]
-    upload_id: Optional[int]        # <--- included for client convenience
+    upload_id: Optional[int]        # <--- just add this line
 
 
 class ReportResponse(BaseModel):
@@ -518,6 +517,8 @@ def get_dashboard(current_user: User = Depends(get_current_active_user), db: Ses
     )
 
 
+    
+
 @router.post("/upload", response_model=UploadResponse)
 def upload_file(file: UploadFile = File(...), current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     filename = file.filename or f"upload-{uuid.uuid4().hex}.log"
@@ -557,7 +558,7 @@ def list_uploads(current_user: User = Depends(get_current_active_user), db: Sess
     return out
 
 # -------------------------
-# Serve uploaded file with explicit CORS headers (unchanged)
+# NEW: Serve uploaded file with explicit CORS headers
 # -------------------------
 @router.get("/uploads/{upload_id}")
 def serve_upload_file(upload_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
@@ -722,6 +723,34 @@ def update_profile(payload: dict, current_user: User = Depends(get_current_activ
             continue
         out[col] = getattr(u, col)
     return out
+
+
+@router.delete("/uploads/{upload_id}")
+def delete_upload(
+    upload_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    # 1. Verify upload exists + belongs to user
+    upload = db.query(Upload).filter(
+        Upload.id == upload_id,
+        Upload.user_email == current_user.email
+    ).first()
+
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+
+    # 2. Delete all logs linked to this upload
+    db.query(LogEntry).filter(
+        LogEntry.upload_id == upload_id,
+        LogEntry.user_email == current_user.email
+    ).delete()
+
+    # 3. Delete the upload row
+    db.delete(upload)
+    db.commit()
+
+    return {"success": True, "deleted_upload": upload_id}
 
 
 @router.post("/ai/analyze")
