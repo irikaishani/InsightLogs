@@ -1,6 +1,6 @@
 // src/pages/logs.jsx
 import React, { useState } from "react";
-import Card from "../shared/Card";
+import Card from "../shared/card";
 
 const mockLogs = [
   { id: 1, timestamp: "2025-11-15 10:15", level: "ERROR", service: "api", message: "DB connection timeout" },

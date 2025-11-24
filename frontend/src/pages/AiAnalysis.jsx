@@ -1,7 +1,7 @@
 // src/pages/AiAnalysis.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import Card from "../shared/Card";
+import Card from "../shared/card";
 import { API_BASE } from "../firebasework/firebaseconfig";
 
 /* Helpers (unchanged) */

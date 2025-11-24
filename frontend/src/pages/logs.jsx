@@ -1,6 +1,6 @@
 // src/pages/logs.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import Card from "../shared/Card";
+import Card from "../shared/card";
 import { API_BASE } from "../firebasework/firebaseconfig";
 
 /* Helpers */
