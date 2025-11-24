@@ -695,6 +695,7 @@ def delete_upload(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    # 1. Verify upload exists + belongs to user
     upload = db.query(Upload).filter(
         Upload.id == upload_id,
         Upload.user_email == current_user.email
@@ -703,38 +704,17 @@ def delete_upload(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
 
-    # 1) delete related LogEntry rows (bulk delete; faster)
-    try:
-        db.query(LogEntry).filter(
-            LogEntry.upload_id == upload_id,
-            LogEntry.user_email == current_user.email
-        ).delete(synchronize_session=False)
-        db.commit()
-    except Exception:
-        db.rollback()
-        logging.getLogger(__name__).exception("Failed deleting LogEntry rows for upload %s", upload_id)
-        # continue - we still attempt to delete upload row and file
+    # 2. Delete all logs linked to this upload
+    db.query(LogEntry).filter(
+        LogEntry.upload_id == upload_id,
+        LogEntry.user_email == current_user.email
+    ).delete()
 
-    # 2) attempt to remove file from disk (best-effort)
-    try:
-        fp = getattr(upload, "storage_path", None)
-        if fp and os.path.exists(fp):
-            os.remove(fp)
-            logging.getLogger(__name__).info("Removed file from disk: %s", fp)
-    except Exception:
-        logging.getLogger(__name__).exception("Failed to remove upload file from disk: %s", getattr(upload, "storage_path", None))
-
-    # 3) delete the Upload DB row
-    try:
-        db.delete(upload)
-        db.commit()
-    except Exception:
-        db.rollback()
-        logging.getLogger(__name__).exception("Failed to delete Upload row %s", upload_id)
-        raise HTTPException(status_code=500, detail="Failed to delete upload")
+    # 3. Delete the upload row
+    db.delete(upload)
+    db.commit()
 
     return {"success": True, "deleted_upload": upload_id}
-
 
 
 @router.post("/ai/analyze")
