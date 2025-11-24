@@ -53,7 +53,7 @@ def _parse_origins(env_value: str) -> List[str]:
 origins = _parse_origins(FRONTEND_ORIGIN_ENV)
 # sensible fallback for local development if nothing provided
 if not origins:
-    origins = ["http://localhost:5173"]
+    origins = ["https://insightlogs.onrender.com", "http://localhost:5173"]
 
 # If the user explicitly set '*' we must not set allow_credentials=True
 allow_credentials = False if origins == ["*"] else True
