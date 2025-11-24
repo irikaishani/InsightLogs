@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from passlib.context import CryptContext
-import jwt
+from jose import jwt
 
 # firebase init helper (replace with your real init)
 from firebase_admin_init import init_firebase_admin
