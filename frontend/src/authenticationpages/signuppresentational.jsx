@@ -190,10 +190,8 @@ export default function SignupPagePresentational({
                 className="w-4 h-4 accent-[#7dd3fc]"
               />
               <label htmlFor="terms" className="text-gray-400">
-                I agree to the{" "}
-                <a href="#" className="text-[#7dd3fc] hover:text-[#b7aaff]">
-                  Terms & Conditions
-                </a>
+                I agree to the Terms & Conditions
+                
               </label>
             </div>
 
