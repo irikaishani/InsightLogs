@@ -12,7 +12,7 @@
 ## 🎥 Demo Video
 
 <p align="center">
-  <a href="https://drive.google.com/drive/u/1/folders/1BpY1DciFUcAQCnA-Q_pnDFPxQGgzgwfB">
+  <a href="https://drive.google.com/file/d/1vVcQ6OZMY48QUBMMy5UmJU62w1KlgJxN/view?usp=sharing">
     <img src="./frontend/public/landingpage.png" alt="InsightLogs Demo" >
   </a>
 </p>
@@ -306,6 +306,7 @@ Created with ❤️ by Irika
 ---
 📧 Email: [ishaniirika5@gmail.com](mailto:ishaniirika5@gmail.com)
 🌍 GitHub: [irikaishani]](https://github.com/irikaishani)
+
 
 
 
